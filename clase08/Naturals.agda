@@ -119,7 +119,7 @@ module Ejemplos where
 
  open import Categories.Sets
  open import Functors.List
- open import Functors.Maybe
+ open import Functors.Maybe renaming (mapMaybe to mapM)
  open import Functors.Constant
  open import Data.Nat
 
@@ -143,22 +143,63 @@ module Ejemplos where
 -}
 
 -- Ejercicio: probar que concat es una transformación natural
+
+ mapList-distrib-++ : {X Y : Set} {f : X → Y} → (xs ys : List X) → mapList f (xs ++ ys) ≅ mapList f xs ++ mapList f ys
+ mapList-distrib-++ [] ys = refl
+ mapList-distrib-++ {f = f} (x ∷ xs) ys = cong (f x ∷_) (mapList-distrib-++ xs ys)
+
+ concat-naturality : {X Y : Set} {f : X → Y} → (xs : List (List X)) → 
+                     mapList f (foldr _++_ [] xs) ≅
+                     foldr _++_ [] (mapList (mapList f) xs)
+ concat-naturality [] = refl
+ concat-naturality {X} {Y} {f} (x ∷ xs) = proof  
+                                            mapList f (foldr _++_ [] (x ∷ xs))
+                                          ≅⟨ refl ⟩ 
+                                            mapList f (x ++ foldr _++_ [] xs)
+                                          ≅⟨ mapList-distrib-++ x (foldr _++_ [] xs) ⟩ 
+                                            mapList f x ++ mapList f (foldr _++_ [] xs)
+                                          ≅⟨ cong (mapList f x ++_) (concat-naturality xs) ⟩ 
+                                            (mapList f x ++ foldr _++_ [] (mapList (mapList f) xs))
+                                          ≅⟨ refl ⟩ 
+                                            foldr _++_ [] (mapList (mapList f) (x ∷ xs))
+                                          ∎
+
  concatNat : NatT (ListF ○ ListF) ListF
- concatNat = {!   !} 
+ concatNat = natural (λ- concat) (ext concat-naturality) 
 
  --
 -- Ejercicio: probar que length es una transformación natural
 -- ¿Entre qué funtores es una transformación natural?
- lengthNat : NatT {!   !} {!   !}
- lengthNat = {!   !}
+
+ length-naturality : {X Y : Obj} {f : Hom X Y} → (xs : List X) → 
+                     foldr (λ _ → suc) 0 xs ≅ foldr (λ _ → suc) 0 (mapList f xs) 
+ length-naturality [] = refl
+ length-naturality {f = f} (x ∷ xs) = proof 
+                                        foldr (λ _ → suc) 0 (x ∷ xs)
+                                      ≅⟨ refl ⟩ 
+                                        suc (foldr (λ _ → suc) 0 xs)
+                                      ≅⟨ cong suc (length-naturality xs) ⟩ 
+                                        suc (foldr (λ _ → suc) 0 (mapList f xs))
+                                      ≅⟨ refl ⟩ 
+                                        foldr (λ _ → suc) 0 (mapList f (x ∷ xs))
+                                      ∎
+
+ lengthNat : NatT ListF (K ℕ)
+ lengthNat = natural (λ- length) (ext length-naturality)
 
 -- Ejercicio: probar que safehead es una transformación natural
  safeHead : {A : Set} → List A → Maybe A
  safeHead [] = nothing
  safeHead (x ∷ xs) = just x
 
+ head-naturality : {X Y : Set} {f : X → Y} → (xs : List X) → 
+                  mapM f (safeHead xs) ≅
+                  safeHead (mapList f xs)
+ head-naturality [] = refl
+ head-naturality (x ∷ xs) = refl
+
  headNat : NatT ListF MaybeF
- headNat = {!   !}
+ headNat = natural (λ- safeHead) (ext head-naturality)
  
  --
 --------------------------------------------------
@@ -240,17 +281,24 @@ compHNat : ∀{F G : Fun C D}{J K : Fun D E}
 compHNat {D = D}{E = E}{F = F}{G} {J}{K} η ε = 
    let open Cat E
        open Cat D using () renaming (_∙_ to _∙D_)
-   in natural {!   !}
+   in natural (λ X → HMap K (cmp η X) ∙ cmp ε (OMap F X))
               λ {X Y f} → 
               proof 
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}  ≅⟨  {!   !} ⟩
-              {!   !}
+                (HMap (K ○ G) f ∙ HMap K (cmp η X) ∙ cmp ε (OMap F X))  
+              ≅⟨ sym ass ⟩
+                ((HMap (K ○ G) f ∙ HMap K (cmp η X)) ∙ cmp ε (OMap F X))  
+              ≅⟨  congl (sym (fcomp K)) ⟩
+                (HMap K (HMap G f ∙D cmp η X) ∙ cmp ε (OMap F X))  
+              ≅⟨  congl (cong (HMap K) (nat η)) ⟩
+                (HMap K (cmp η Y ∙D HMap F f) ∙ cmp ε (OMap F X))  
+              ≅⟨  congl (fcomp K) ⟩
+                ((HMap K (cmp η Y) ∙ HMap K (HMap F f)) ∙ cmp ε (OMap F X)) 
+              ≅⟨  ass ⟩
+                (HMap K (cmp η Y) ∙ HMap K (HMap F f) ∙ cmp ε (OMap F X))  
+              ≅⟨  congr (nat ε) ⟩
+                (HMap K (cmp η Y) ∙ cmp ε (OMap F Y) ∙ HMap J (HMap F f))  
+              ≅⟨  sym ass ⟩
+                ((HMap K (cmp η Y) ∙ cmp ε (OMap F Y)) ∙ HMap (J ○ F) f)
               ∎
 
 {-     --F-->   --J--> 
@@ -278,19 +326,46 @@ compHNat-assoc {C3 = C3}{C4 = C4}{F}{G}{J}{K}{L}{M} (natural cmp1 _) (natural cm
                    let open Cat C4 renaming (_∙_ to  _∙4_)
                        open Cat C3 using () renaming (_∙_ to  _∙3_)                         
                    in
-                     {!   !}
+                     NatTEq2 (Functor-Eq refl refl) (Functor-Eq refl refl)
+                     (ext (λ X → 
+                     (proof 
+                        (HMap M (HMap K (cmp1 X) ∙3 cmp2 (OMap F X)) ∙4 cmp3 (OMap J (OMap F X))) 
+                     ≅⟨ congl (fcomp M) ⟩
+                        ((HMap M (HMap K (cmp1 X)) ∙4 HMap M (cmp2 (OMap F X))) ∙4 cmp3 (OMap J (OMap F X)))
+                     ≅⟨ ass ⟩
+                        (HMap M (HMap K (cmp1 X)) ∙4 HMap M (cmp2 (OMap F X)) ∙4 cmp3 (OMap J (OMap F X)))
+                     ∎ )))
 
 -- ley de intercambio
+
+
+
+
 interchange : ∀ {F G H : Fun C D}{I J K : Fun D E}
               → (α : NatT F G) → (β : NatT G H)
               → (γ : NatT I J) → (δ : NatT J K)
               → compHNat (compVNat β α) (compVNat δ γ) ≅ compVNat (compHNat β δ) (compHNat α γ)
-interchange {D = D}{E = E}{F = F}{G}{H}{I = I}{J} (natural α _) (natural β _) (natural γ natγ) (natural δ _) =
+interchange {D = D}{E = E}{F = F}{G}{H}{I = I}{J}{K} (natural α natα) (natural β natβ) (natural γ natγ) (natural δ natδ) =
           let open NatT
               open Cat D using () renaming (_∙_ to _∙D_)
               open Cat E
            in
-           {!   !}
+           NatTEq (ext (λ x → 
+           proof 
+              (HMap K (β x ∙D α x) ∙ δ (OMap F x) ∙ γ (OMap F x))
+           ≅⟨ congl (fcomp K) ⟩ 
+              ((HMap K (β x) ∙ HMap K (α x)) ∙ δ (OMap F x) ∙ γ (OMap F x))
+           ≅⟨ sym ass ⟩ 
+              (((HMap K (β x) ∙ HMap K (α x)) ∙ δ (OMap F x)) ∙ γ (OMap F x))
+           ≅⟨ congl ass ⟩ 
+              ((HMap K (β x) ∙ HMap K (α x) ∙ δ (OMap F x)) ∙ γ (OMap F x))
+           ≅⟨ congl (congr natδ) ⟩ 
+              ((HMap K (β x) ∙ δ (OMap G x) ∙ HMap J (α x)) ∙ γ (OMap F x))
+           ≅⟨ congl (sym ass) ⟩ 
+              (((HMap K (β x) ∙ δ (OMap G x)) ∙ HMap J (α x)) ∙ γ (OMap F x))
+           ≅⟨ ass ⟩  
+              ((HMap K (β x) ∙ δ (OMap G x)) ∙ HMap J (α x) ∙ γ (OMap F x))
+           ∎ ))
 
 open import Categories.Coproducts
 
@@ -305,6 +380,47 @@ module FunctorCoproduct (cop : Coproducts C) where
  -- Ejercicio: Leer la definición de coproducto de funtores _+F_
  -- y definir copairF 
 
+ copair-comp : ∀{X Y Z W T U}(f : Hom X Z)(g : Hom Y W)(h : Hom Z T)(k : Hom W U) 
+               → copair (h ∙ f) (k ∙ g) ≅ copair h k ∙ copair f g 
+ copair-comp f g h k = sym (law3 (proof 
+                                    (([ inl ∙ h , inr ∙ k ] ∙ [ inl ∙ f , inr ∙ g ]) ∙ inl)
+                                  ≅⟨ ass ⟩
+                                    ([ inl ∙ h , inr ∙ k ] ∙ [ inl ∙ f , inr ∙ g ] ∙ inl)
+                                  ≅⟨ congr law1 ⟩
+                                    ([ inl ∙ h , inr ∙ k ] ∙ inl ∙ f)
+                                  ≅⟨ sym ass ⟩
+                                    (([ inl ∙ h , inr ∙ k ] ∙ inl) ∙ f)
+                                  ≅⟨ congl law1 ⟩
+                                    ((inl ∙ h) ∙ f)
+                                  ≅⟨ ass ⟩
+                                    (inl ∙ h ∙ f)
+                                  ∎) 
+                                 (proof
+                                    (([ inl ∙ h , inr ∙ k ] ∙ [ inl ∙ f , inr ∙ g ]) ∙ inr)
+                                  ≅⟨ ass ⟩ 
+                                    ([ inl ∙ h , inr ∙ k ] ∙ [ inl ∙ f , inr ∙ g ] ∙ inr)
+                                  ≅⟨ congr law2 ⟩ 
+                                    ([ inl ∙ h , inr ∙ k ] ∙ inr ∙ g)
+                                  ≅⟨ sym ass ⟩ 
+                                    (([ inl ∙ h , inr ∙ k ] ∙ inr) ∙ g)
+                                  ≅⟨ congl law2 ⟩ 
+                                    ((inr ∙ k) ∙ g)
+                                  ≅⟨ ass ⟩ 
+                                    (inr ∙ k ∙ g)
+                                  ∎))
+
+
  copairF : ∀{F G H K} →
           (NatT {C = D} F H) → (NatT G K) → NatT (F +F G) (H +F K)
- copairF = {!   !} 
+ copairF {F = F} {G = G} {H = H} {K = K} (natural cmpfh natfh) (natural cmpgk natgk) = 
+        natural (λ X → copair (cmpfh X) (cmpgk X)) 
+                (λ {X} {Y} {f} → 
+                        proof
+                          ([ inl ∙ HMap H f , inr ∙ HMap K f ] ∙ [ inl ∙ cmpfh X , inr ∙ cmpgk X ])
+                        ≅⟨ sym (copair-comp (cmpfh X) (cmpgk X) (HMap H f) (HMap K f)) ⟩
+                          [ inl ∙ HMap H f ∙ cmpfh X , inr ∙ HMap K f ∙ cmpgk X ]
+                        ≅⟨ cong₂ [_,_] (congr natfh) (congr natgk) ⟩
+                          [ inl ∙ cmpfh Y ∙ HMap F f , inr ∙ cmpgk Y ∙ HMap G f ]
+                        ≅⟨ copair-comp (HMap F f) (HMap G f) (cmpfh Y) (cmpgk Y) ⟩
+                          ([ inl ∙ cmpfh Y , inr ∙ cmpgk Y ] ∙ [ inl ∙ HMap F f , inr ∙ HMap G f ])
+                        ∎ )   

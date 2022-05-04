@@ -99,10 +99,10 @@ subst P {a} {.a} refl x = x
 {- Probar sym y trans usando subst -}
 
 sym' : {A : Set} → {a b : A} → a ≡ b → b ≡ a
-sym' {a = a} p = subst {!!} {!!} {!!}
+sym' {a = a} p = subst (λ x → x ≡ a) p refl
 
 trans' : {A : Set}{a b c : A} → a ≡ b → b ≡ c → a ≡ c
-trans' {a = a} ab bc = subst {!!} {!!} {!!}
+trans' {a = a} ab bc = subst (λ x → a ≡ x) bc ab 
 
 --------------------------------------------------
 
@@ -173,19 +173,73 @@ suma-equiv' x (suc y) =
 intentar que la prueba sea legible usando ≡-Reasoning
 -}
 +-comm : (m n : ℕ) → m + n ≡ n + m
-+-comm m n = {!!}
++-comm n zero = +0 n
++-comm n (suc m) = begin 
+                      n + suc m 
+                   ≡⟨ +suc n m ⟩
+                      suc (n + m)
+                   ≡⟨ cong suc (+-comm n m) ⟩
+                      suc (m + n)
+                   ≡⟨ refl ⟩ 
+                      suc m + n 
+                   ∎  
 
 +-assoc : (m n l : ℕ) → m + (n + l) ≡ (m + n) + l
-+-assoc m n l = {!!}
++-assoc zero n l = refl
++-assoc (suc m) n l = begin 
+                        suc (m + (n + l))
+                      ≡⟨ cong suc (+-assoc m n l) ⟩
+                        suc (m + n + l)
+                      ≡⟨ refl ⟩ 
+                        suc m + n + l
+                      ∎
 
 *0 : ∀ m → 0 ≡ m * 0
-*0 m = {!   !}
+*0 zero = refl
+*0 (suc m) = begin 
+               0
+             ≡⟨ *0 m ⟩
+               m * 0
+             ≡⟨ refl ⟩
+               0 + m * 0
+             ≡⟨ refl ⟩
+               suc m * 0 
+             ∎
 
 *suc : (m n : ℕ) → m + m * n ≡ m * suc n
-*suc m n = {!   !} 
+*suc zero n = refl
+*suc (suc m) n = begin 
+                    suc m + suc m * n
+                 ≡⟨ refl ⟩
+                    suc m + (n + m * n)
+                 ≡⟨ +-assoc (suc m) n (m * n) ⟩
+                    suc m + n + m * n
+                 ≡⟨ cong (λ x → x + m * n) (+-comm (suc m) n) ⟩ 
+                    n + suc m + m * n 
+                 ≡⟨ cong (λ x → x + m * n) (+suc n m) ⟩ 
+                    suc (n + m) + m * n 
+                 ≡⟨ refl ⟩
+                    suc n + m + m * n
+                 ≡⟨ sym (+-assoc (suc n) m (m * n)) ⟩
+                    suc n + (m + m * n)
+                 ≡⟨ cong (_+_ (suc n)) (*suc m n) ⟩
+                    suc n + m * suc n 
+                 ≡⟨ refl ⟩
+                    suc m * suc n
+                 ∎
+            
 
 *-comm : (m n : ℕ) → m * n ≡ n * m
-*-comm m n = {!   !}
+*-comm zero n = *0 n
+*-comm (suc m) n = begin 
+                      suc m * n
+                   ≡⟨ refl ⟩
+                      n + m * n
+                   ≡⟨ cong₂ _+_ refl (*-comm m n) ⟩
+                      n + n * m
+                   ≡⟨ *suc n m ⟩
+                      n * suc m
+                   ∎
 
 {- 
 Decidibilidad 
@@ -362,7 +416,7 @@ _$- : {A : Set} {B : A → Set} → ((x : A) → B x) → ({x : A} → B x)
 f $- = f _
 
 implicit-extensionality : Extensionality → ExtensionalityImplicit
-implicit-extensionality ext f≅g = {!   !}
+implicit-extensionality ext f≅g = {!  !}
 
 iext : ExtensionalityImplicit
 iext = {!   !}
@@ -381,18 +435,56 @@ open import Data.Sum
   div₂ : división por 2
 -}
 mod₂ : ℕ → ℕ 
-mod₂ n = {!   !}
+mod₂ zero = zero
+mod₂ (suc n) with mod₂ n 
+...               | zero = 1
+...               | (suc _) = zero
 
 div₂ : ℕ → ℕ
-div₂ n = {!   !}
+div₂ zero = zero
+div₂ (suc zero) = zero
+div₂ (suc (suc n)) = 1 + (div₂ n)
 
 {- Probar las sigfuientes propiedades: -}
 
 mod₂Lem : (n : ℕ) → (mod₂ n ≡ 0) ⊎ (mod₂ n ≡ 1)
-mod₂Lem n = {!   !}
+mod₂Lem zero = inj₁ refl
+mod₂Lem (suc n) with mod₂Lem n 
+... | inj₁ z rewrite z = inj₂ refl
+... | inj₂ u rewrite u = inj₁ refl
+
+lemn+n : (n : ℕ) → n + n ≡ 2 * n 
+lemn+n zero = refl
+lemn+n (suc n) = cong suc (cong (_+_ n) (cong suc (sym (+0 n)))) 
+
+modsucsuc : (n : ℕ) → mod₂ (suc (suc n)) ≡ mod₂ n 
+modsucsuc zero = refl
+modsucsuc (suc n) with mod₂Lem n 
+...                     | inj₁ z rewrite z = refl
+...                     | inj₂ u rewrite u = refl
 
 div₂Lem : ∀ {n} → 2 * (div₂ n) + mod₂ n ≡ n
-div₂Lem {n} = {!   !}
+div₂Lem {zero} = refl
+div₂Lem {suc zero} = refl
+div₂Lem {suc (suc n)} = cong suc (begin 
+                                      div₂ n + 1 * suc (div₂ n) + mod₂ (suc (suc n))
+                                  ≡⟨ cong (λ x → div₂ n + x + mod₂ (suc (suc n))) (cong suc (+0 (div₂ n))) ⟩
+                                      div₂ n + suc (div₂ n) + mod₂ (suc (suc n))
+                                  ≡⟨ cong (λ x → div₂ n + x + mod₂ (suc (suc n))) (+-comm 1 (div₂ n)) ⟩
+                                      div₂ n + (div₂ n + 1) + mod₂ (suc (suc n))
+                                  ≡⟨ cong (λ x → x + mod₂ (suc (suc n))) (+-assoc (div₂ n) (div₂ n) 1) ⟩
+                                      div₂ n + div₂ n + 1 + mod₂ (suc (suc n))
+                                  ≡⟨ cong (λ x → x + 1 + mod₂ (suc (suc n))) (lemn+n (div₂ n)) ⟩ 
+                                      2 * div₂ n + 1 + mod₂ (suc (suc n))
+                                  ≡⟨ cong (λ x → x + mod₂ (suc (suc n))) (+-comm (2 * div₂ n) 1) ⟩ 
+                                      1 + 2 * div₂ n + mod₂ (suc (suc n))
+                                  ≡⟨ cong (_+_ (1 + 2 * div₂ n)) (modsucsuc n) ⟩ 
+                                      1 + 2 * div₂ n + mod₂ n
+                                  ≡⟨ cong (_+_ 1) (div₂Lem {n}) ⟩ 
+                                      1 + n
+                                  ≡⟨ refl ⟩ 
+                                      suc n
+                                  ∎ )
 
 {- Mostrar que la igualdad modulo 2 es decidible -}
 
@@ -400,4 +492,17 @@ _≡₂_ : ℕ → ℕ → Set
 m ≡₂ n = mod₂ m ≡ mod₂ n
 
 _≡₂?_ : (m n : ℕ) → Dec (m ≡₂ n)
-m ≡₂? n = {!   !}
+zero ≡₂? zero = yes refl
+zero ≡₂? suc n with mod₂Lem n 
+...                 | inj₁ z rewrite z = no (lem 0)
+...                 | inj₂ u rewrite u = yes refl
+suc m ≡₂? zero with mod₂Lem m 
+...                 | inj₁ z rewrite z = no (λ x → lem 0 (sym x))
+...                 | inj₂ u rewrite u = yes refl
+suc m ≡₂? suc n with mod₂Lem m 
+...                  | inj₁ zm with mod₂Lem n 
+...                                 | inj₁ zn rewrite zm | zn = yes refl
+...                                 | inj₂ un rewrite zm | un = no (λ x → lem 0 (sym x))
+(suc m ≡₂? suc n)    | inj₂ um with mod₂Lem n 
+...                                 | inj₁ zn rewrite um | zn = no (lem 0)
+...                                 | inj₂ un rewrite um | un = yes refl

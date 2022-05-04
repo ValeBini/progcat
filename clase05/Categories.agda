@@ -148,6 +148,7 @@ C ×C D = record
   Flechas : Aᵢ → Bᵢ    
 -}
 
+
 Fam : Set → Cat
 Fam I = record
           { Obj = I → Set
@@ -231,7 +232,16 @@ module CatMon where
  open import Records-completo hiding (Iso ; ⊤)
 
  CatMon : Monoid → Cat
- CatMon M = {!!} 
+ CatMon M = let open Monoid M 
+   in record
+   { Obj = Lift _ ⊤
+   ; Hom = λ _ _ → Carrier
+   ; iden = ε
+   ; _∙_ = _∙_
+   ; idl = lid
+   ; idr = rid
+   ; ass = assoc
+   } 
 
 
 --------------------------------------------------
@@ -242,12 +252,57 @@ module CatMon where
 module MonCat where
 
  open import Records-completo hiding (Iso)
-
+ open Monoid
  open Is-Monoid-Homo
 
+ record Monoid-Morph (M N : Monoid) : Set where
+   constructor monoid-morph
+   field 
+      morph : Carrier M → Carrier N
+      is-monoid-morph : Is-Monoid-Homo M N morph
+
+ open Monoid-Morph
+
+ Monoid-comp : {X Y Z : Monoid} → Monoid-Morph Y Z → Monoid-Morph X Y → Monoid-Morph X Z
+ Monoid-comp {X} {Y} {Z} myz mxy = monoid-morph 
+                                       ((morph myz) ∘ (morph mxy)) 
+                                       (is-monoid-homo 
+                                          (proof
+                                                morph myz (morph mxy (εX))
+                                             ≡⟨ cong (morph myz) (preserves-unit (is-monoid-morph mxy)) ⟩
+                                                morph myz (εY)
+                                             ≡⟨ preserves-unit (is-monoid-morph myz) ⟩
+                                                εZ
+                                             ∎)
+                                          (λ {x} {y} → 
+                                             proof
+                                                morph myz (morph mxy ((x ∙X y))) 
+                                             ≡⟨ cong (morph myz) (preserves-mult (is-monoid-morph mxy)) ⟩
+                                                morph myz (morph mxy x ∙Y morph mxy y)
+                                             ≡⟨ preserves-mult (is-monoid-morph myz) ⟩
+                                                (morph myz (morph mxy x) ∙Z morph myz (morph mxy y))
+                                             ∎) )
+                              where open Monoid X using () renaming (_∙_ to _∙X_ ; ε to εX)
+                                    open Monoid Y using () renaming (_∙_ to _∙Y_ ; ε to εY)
+                                    open Monoid Z using () renaming (_∙_ to _∙Z_ ; ε to εZ)
+
+ Monoid-morph-eq : {X Y : Monoid} → {m m' : Monoid-Morph X Y} → 
+                  (morph m) ≡ (morph m') → m ≡ m'
+ Monoid-morph-eq {X} {Y} {monoid-morph m (is-monoid-homo unit mult)} 
+                         {monoid-morph .m (is-monoid-homo unit' mult')} refl = cong (λ q → monoid-morph m q) 
+                                                                              (cong₂ is-monoid-homo (ir unit unit') 
+                                                                                                 (iext λ x → iext (λ y → ir mult mult')))
 
  MonCat : Cat
- MonCat = {!!}
+ MonCat = record
+      { Obj = Monoid
+      ; Hom = λ M₁ M₂ → Monoid-Morph M₁ M₂
+      ; iden = monoid-morph id (is-monoid-homo refl refl)
+      ; _∙_ = Monoid-comp
+      ; idl = Monoid-morph-eq refl
+      ; idr = Monoid-morph-eq refl
+      ; ass = Monoid-morph-eq refl
+      }
  
 --------------------------------------------------
 {- Ejercicio: Dada un categoría C, definir la siguiente categoría:
@@ -259,11 +314,57 @@ module MonCat where
 
 module ArrowCat (C : Cat) where
 
- open Cat C 
+ open Cat C renaming (Obj to CObj ; Hom to CHom ; iden to Ciden ; _∙_ to _∙C_ ; idl to Cidl ; idr to Cidr ; ass to Cass)
 
+ -- record para representar los objetos de la categoria
+ record Arrow₀ : Set₁ where
+   constructor arrow0
+   field
+      dom : CObj
+      codom : CObj
+      hom : CHom dom codom
+
+ open Arrow₀ 
+
+ -- record para representar los morfismos de la categoria
+ record Arrow₁ (F F' : Arrow₀) : Set where
+   constructor arrow1
+   field g1 : CHom (dom F) (dom F')
+         g2 : CHom (codom F) (codom F')
+         is-arrowmorph : (hom F') ∙C g1 ≡ g2 ∙C (hom F)
+
+ open Arrow₁
+
+ Arrow-com : {X Y Z : Arrow₀} → Arrow₁ Y Z → Arrow₁ X Y → Arrow₁ X Z
+ Arrow-com {X} {Y} {Z} (arrow1 g1yz g2yz pyz) (arrow1 g1xy g2xy pxy) = arrow1 (g1yz ∙C g1xy) 
+                                                                              (g2yz ∙C g2xy) 
+                                                                              (proof 
+                                                                                 (hom Z ∙C (g1yz ∙C g1xy))
+                                                                              ≡⟨ sym Cass ⟩
+                                                                                 ((hom Z ∙C g1yz) ∙C g1xy)
+                                                                              ≡⟨ cong (λ x → x ∙C g1xy) pyz ⟩
+                                                                                 ((g2yz ∙C (hom Y)) ∙C g1xy)
+                                                                              ≡⟨ Cass ⟩
+                                                                                 (g2yz ∙C (hom Y ∙C g1xy))
+                                                                              ≡⟨ cong (_∙C_ g2yz) pxy ⟩
+                                                                                 (g2yz ∙C (g2xy ∙C (hom X)))
+                                                                              ≡⟨ sym Cass ⟩
+                                                                                 ((g2yz ∙C g2xy) ∙C (hom X))
+                                                                              ∎)
+
+ Arrow₁-eq : {F F' : Arrow₀} {G H : Arrow₁ F F'} → (g1 G ≡ g1 H) → (g2 G ≡ g2 H) → G ≡ H 
+ Arrow₁-eq {F} {F'} {arrow1 g1G g2G pG} {arrow1 .g1G .g2G pH} refl refl = cong (arrow1 g1G g2G) (ir pG pH)
 
  ArrowCat : Cat
- ArrowCat = {!!}
+ ArrowCat = record
+            { Obj = Arrow₀
+            ; Hom = λ F F' → Arrow₁ F F'
+            ; iden = arrow1 Ciden Ciden (trans Cidr (sym Cidl)) 
+            ; _∙_ = Arrow-com
+            ; idl = Arrow₁-eq Cidl Cidl
+            ; idr = Arrow₁-eq Cidr Cidr
+            ; ass = Arrow₁-eq Cass Cass
+            }
  
 --------------------------------------------------
 {- Generalizamos la noción de isomorfismo de la clase pasada a cualquier categoría -}
@@ -284,15 +385,65 @@ record Iso {C : Cat}(A B : Obj C)(fun : Hom C A B) : Set where
  Mostrar que en el caso de la categoría Sets, isomorfismo corresponde a biyección de funciones
 
 Ayuda : puede ser útil usar cong-app
+
+Sets : Cat
+Sets = record
+         { Obj = Set
+         ; Hom = λ X Y → X → Y  
+         ; iden = id
+         ; _∙_ = λ f g → f ∘ g  
+         ; idl = refl
+         ; idr = refl
+         ; ass = refl
+         } 
+
+Biyectiva : {X Y : Set}(f : X → Y) → Set
+Biyectiva {X} {Y} f = (y : Y) → Σ X (λ x → (f x ≡ y) × (∀ x' → f x' ≡ y → x ≡ x')) 
+
 -}
+
+open import Records-completo hiding (Iso ; ext)
+
+iso-biy : {A B : Set} → (f : A → B) → Iso {Sets} A B f → Biyectiva f 
+iso-biy f (iso inv law1 law2) y = (inv y) , (cong-app law1 y) , λ x' p → proof
+                                                                           inv y
+                                                                         ≡⟨ cong inv (sym p) ⟩ 
+                                                                           inv (f x') 
+                                                                         ≡⟨ cong-app law2 x' ⟩ 
+                                                                           x' 
+                                                                         ∎
+
+biy-iso : {A B : Set} → (f : A → B) → Biyectiva f → Iso {Sets} A B f 
+biy-iso f biy = iso (λ b → fst (biy b)) 
+                    (ext (λ b → fst (snd (biy b)) )) 
+                    (ext (λ a → snd (snd (biy (f a))) a refl))
+
+
 
 
 --------------------------------------------------
 {- Ejercicio:
  Probar que un isormofismo en (C : Cat) es un isomorfismo en (C Op).
 
+_Op : Cat → Cat
+C Op =  let open Cat C in
+        record
+         { Obj = Obj
+         ; Hom = λ X Y → Hom Y X 
+         ; iden = iden
+         ; _∙_ = λ f g → g ∙ f 
+         ; idl = idr
+         ; idr = idl
+         ; ass = sym ass
+         }
 
 -}
+
+c-cop : {C : Cat} → {A B : Obj C} → (fun : Hom C A B) → Iso {C} A B fun → Iso {C Op} B A fun 
+c-cop fun (iso inv law1 law2) = iso inv law2 law1
+
+cop-c : {C : Cat} → {A B : Obj C} → (fun : Hom C A B) → Iso {C Op} B A fun → Iso {C} A B fun 
+cop-c fun (iso inv law1 law2) = iso inv law2 law1
 
 --------------------------------------------------
 {- Ejercicio EXTRA:
@@ -314,3 +465,4 @@ Ayuda : puede ser útil usar cong-app
 --------------------------------------------------
 
 
+  

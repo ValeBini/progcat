@@ -110,11 +110,20 @@ MaybeF = functor Maybe
 -- Ejercicio: Funtor Lista
 open import Data.List.Base using (List ; [] ; _∷_) renaming (map to mapList) public
 
+ListFid : {X : Set} → (xs : List X) → mapList (λ x → x) xs ≅ xs
+ListFid [] = refl
+ListFid (x ∷ xs) = cong (x ∷_) (ListFid xs)
+
+ListFcomp : {X Y Z : Set} {f : Y → Z} {g : X → Y} → (xs : List X) → 
+            mapList (λ x → f (g x)) xs ≅ mapList f (mapList g xs)
+ListFcomp [] = refl
+ListFcomp {f = f} {g = g} (x ∷ xs) = cong (f (g x) ∷_) (ListFcomp xs) 
+
 ListF : Fun Sets Sets
 ListF = functor List
                 mapList
-                {!!}
-                {!!}
+                (ext ListFid)
+                (ext ListFcomp)
 
 -- Ejercicio EXTRA: Bifuntor de árboles con diferente información en nodos y hojas
 data Tree (A B : Set) : Set where
@@ -132,7 +141,28 @@ TreeF = {!!}
   es un bifunctor Hom : (C Op) ×C C → Sets
   -}
 HomF : ∀{a}{b}{C : Cat {a} {b}} → Fun ((C Op) ×C C) (Categories.Sets.Sets {b})
-HomF {C = C} = {!   !}
+HomF {a} {b} {C = C} = let open Cat C using () renaming (_∙_ to _∙C_) 
+                           open Cat ((C Op) ×C C) using () renaming (_∙_ to _∙×_)
+                           open Cat (Categories.Sets.Sets {b}) using () renaming (_∙_ to _∙s_) in 
+                        functor (λ x → Hom C (fst x) (snd x)) 
+                                (λ f → λ h → (snd f) ∙C h ∙C (fst f)) 
+                                (ext (λ x → trans (cong (iden C ∙C_) (idr C)) (idl C))) 
+                                (λ {X} {Y} {Z} {f} {g} → ext (λ x → 
+                                            (proof 
+                                                (snd (f ∙× g) ∙C x ∙C fst (f ∙× g))
+                                              ≅⟨ refl ⟩ 
+                                                (snd (f ∙× g) ∙C x ∙C (fst g ∙C fst f))
+                                              ≅⟨ refl ⟩ 
+                                                ((snd f ∙C snd g) ∙C x ∙C (fst g ∙C fst f))
+                                              ≅⟨ congr C (sym (ass C)) ⟩ 
+                                                ((snd f ∙C snd g) ∙C (x ∙C fst g) ∙C (fst f))
+                                              ≅⟨ sym (ass C) ⟩ 
+                                                (((snd f ∙C snd g) ∙C (x ∙C fst g)) ∙C (fst f))
+                                              ≅⟨ congl C (ass C) ⟩ 
+                                                (((snd f) ∙C (snd g ∙C x ∙C fst g)) ∙C (fst f))
+                                              ≅⟨ ass C ⟩ 
+                                                ((snd f) ∙C (snd g ∙C x ∙C fst g) ∙C (fst f)) 
+                                              ∎ )) )
 
 --------------------------------------------------
 {- Composición de funtores -}
@@ -142,7 +172,7 @@ _○_ {D = D}{E = E}{C = C} F G =
        open Cat D using () renaming (_∙_ to _∙d_)
        open Cat E using () renaming (_∙_ to _∙e_)
    in functor 
-    (OMap F ∘ OMap G) 
+     (OMap F ∘ OMap G) 
      (HMap F ∘ HMap G) 
      (proof         
        HMap F (HMap G (iden C))       
@@ -151,7 +181,13 @@ _○_ {D = D}{E = E}{C = C} F G =
       ≅⟨ fid F ⟩
        iden E
      ∎) 
-     {!   !}
+     λ {X} {Y} {Z} {f} {g} → proof 
+                                HMap F (HMap G (f ∙c g))
+                             ≅⟨ cong (HMap F) (fcomp G) ⟩ 
+                                HMap F (HMap G f ∙d HMap G g)
+                             ≅⟨ fcomp F ⟩ 
+                                (HMap F (HMap G f) ∙e HMap F (HMap G g))
+                             ∎
     
 infixr 10 _○_
 
@@ -204,7 +240,28 @@ open import Categories.Iso
 
 FunIso : (F : Fun C D) → ∀{X Y}(f : Hom C X Y)
        → Iso C f → Iso D (HMap F f)
-FunIso  = {! !}
+FunIso {C = C} {D = D} (functor omapF hmapF fidF fcompF) f (iso inv rinv linv) = 
+       let open Cat D using () renaming (_∙_ to _∙D_) 
+           open Cat C using () renaming (_∙_ to _∙C_) in
+       iso (hmapF inv) 
+           (proof 
+              (hmapF f ∙D hmapF inv)
+            ≅⟨ sym fcompF ⟩ 
+              hmapF (f ∙C inv)
+            ≅⟨ cong hmapF rinv ⟩ 
+              hmapF (iden C)
+            ≅⟨ fidF ⟩ 
+              iden D
+            ∎) 
+           (proof 
+              (hmapF inv ∙D hmapF f)
+            ≅⟨ sym fcompF ⟩
+              hmapF (inv ∙C f)
+            ≅⟨ cong hmapF linv ⟩
+              hmapF (iden C)
+            ≅⟨ fidF ⟩
+              iden D
+            ∎)
 
 --------------------------------------------------
 {- Ejercicio EXTRA: Sea C una categoría con productos. Probar
