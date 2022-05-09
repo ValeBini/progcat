@@ -454,15 +454,36 @@ cop-c fun (iso inv law1 law2) = iso inv law2 law1
      (A,a) → (B, b) es una función f : A → B, tal que f(a) = b 
 -}
 
+record PointedSet : Set₁ where
+   constructor pointed
+   field 
+      set : Set 
+      obj : set 
+
+open PointedSet
+
+record PointedMorph (X Y : PointedSet) : Set where
+   constructor pmorph 
+   field
+      morph : (set X) → (set Y) 
+      prop : morph (obj X) ≡ obj Y
+
+open PointedMorph 
+
+PointedMorph-Eq : {X Y : PointedSet} → {F G : PointedMorph X Y} → morph F ≡ morph G → F ≡ G 
+PointedMorph-Eq {X} {Y} {pmorph mF pF} {pmorph .mF pG} refl = cong (pmorph mF) (ir pF pG)
+
+PointedCat : Cat
+PointedCat = record
+            { Obj = PointedSet
+            ; Hom = λ X Y → PointedMorph X Y
+            ; iden = pmorph id refl
+            ; _∙_ = λ F G → pmorph ((morph F) ∘ (morph G)) (trans (cong (morph F) (prop G)) (prop F))
+            ; idl = PointedMorph-Eq refl
+            ; idr = PointedMorph-Eq refl
+            ; ass = PointedMorph-Eq refl
+            }
 --------------------------------------------------
 
-{- Ejercicio EXTRA:
- Definir la categoría cuyos
-  - objetos son conjuntos finitos (y por lo tanto isomorfos a Fin n para algún n)
-  - morfismos son isomorfismos.  
--}
 
---------------------------------------------------
-
-
-  
+   
