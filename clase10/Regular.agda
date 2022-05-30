@@ -66,10 +66,11 @@ open import Data.List hiding (map ; sum)
 -- List A B = 1 + A × B
 -- List = 1 + P × I
 
+{-
 -- No podemos definirlo, falta modelar recursión
 toList' : ∀ {r} {A} → ⟦ U ⊕ (P ⊗ I) ⟧ᵣ A r → List A 
 toList' x = {!!} 
-
+-}
 
 
 -- Necesitamos un operador de punto fijo que compute
@@ -116,10 +117,12 @@ open Iso
 
 -- Completar
 iso1 : ∀ {A}{x} → toList {A} (fromList {A} x) ≡ x
-iso1 {_} {x} = {!!}  
+iso1 {_} {[]} = refl
+iso1 {_} {x ∷ x₁} = cong (x ∷_) (iso1 {_} {x₁})  
 
 iso2 : ∀ {A}{x} → fromList {A} (toList {A} x) ≡ x
-iso2 {_} {x} = {!!} 
+iso2 {_} {⟨ inj₁ tt ⟩} = refl
+iso2 {_} {⟨ inj₂ y ⟩} = cong (λ x → ⟨ inj₂ x ⟩) (cong (λ x → proj₁ y , x) iso2) 
 
 listIso : ∀ {A : Set} → Iso (LIST A) (List A) (toList {A})
 listIso = iso fromList iso1 iso2 
@@ -128,7 +131,13 @@ listIso = iso fromList iso1 iso2
 -- Definición genérica de map para los tipos de datos regulares
 
 map : ∀ {A B C D} → (F : Regular) → (A → B) → (C → D) → ⟦ F ⟧ᵣ A C → ⟦ F ⟧ᵣ B D
-map F f g x = {!!} 
+map U f g x = tt
+map (K A) f g x = x
+map P f g x = f x
+map (F ⊗ F₁) f g (x , y) = (map F f g x) , (map F₁ f g y) 
+map (F ⊕ F₁) f g (inj₁ x) = inj₁ (map F f g x)
+map (F ⊕ F₁) f g (inj₂ y) = inj₂ (map F₁ f g y)
+map I f g x = g x 
 
 -- Definición de fold 
 -- fold (h) . inF = h . F fold (h)
@@ -238,3 +247,4 @@ sum {F} = {!!}
 
 
 
+ 
